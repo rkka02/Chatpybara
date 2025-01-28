@@ -41,6 +41,11 @@ struct SidebarView: View {
     // This property fetches all ChatRooms from SwiftData automatically
     @Query(sort: \ChatRoom.name) var rooms: [ChatRoom]
     
+    // State variables to manage the presentation of the create room sheet and input
+    @State private var isShowingCreateRoomSheet = false
+    @State private var newRoomName = ""
+    @State private var errorMessage: String?
+    
     var body: some View {
         List {
             ForEach(rooms) { room in
@@ -54,20 +59,55 @@ struct SidebarView: View {
         }
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
-                Button(action: createRoom) {
+                Button(action: {
+                    isShowingCreateRoomSheet = true
+                }) {
                     Image(systemName: "plus")
                 }
             }
         }
         .navigationTitle("Chat Rooms")
+        .sheet(isPresented: $isShowingCreateRoomSheet) {
+                    CreateRoomSheet(
+                        roomName: $newRoomName,
+                        isPresented: $isShowingCreateRoomSheet,
+                        onCreate: createRoom,
+                        errorMessage: $errorMessage
+                    )
+                }
+        .alert(isPresented: Binding<Bool>(
+                    get: { errorMessage != nil },
+                    set: { _ in errorMessage = nil }
+                )) {
+                    Alert(
+                        title: Text("Error"),
+                        message: Text(errorMessage ?? "An unknown error occurred."),
+                        dismissButton: .default(Text("OK"))
+                    )
+                }
     }
     
     private func createRoom() {
-        // Insert new room into the SwiftData model context
-        let newRoom = ChatRoom(name: "Room \(rooms.count + 1)")
-        // Insert using the context instance
-        context.insert(newRoom)
-    }
+            let trimmedName = newRoomName.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmedName.isEmpty else {
+                errorMessage = "Room name cannot be empty."
+                return
+            }
+            
+            // Optionally, check for unique room names
+            if rooms.contains(where: { $0.name.lowercased() == trimmedName.lowercased() }) {
+                errorMessage = "A room with this name already exists."
+                return
+            }
+            
+            // Insert new room into the SwiftData model context
+            let newRoom = ChatRoom(name: trimmedName)
+            context.insert(newRoom)
+            
+            // Reset the input and dismiss the sheet
+            newRoomName = ""
+            isShowingCreateRoomSheet = false
+        }
     
     private func deleteRooms(at offsets: IndexSet) {
         for index in offsets {
@@ -199,5 +239,34 @@ struct MessageBubbleView: View {
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 2)
+    }
+}
+
+struct CreateRoomSheet: View {
+    @Binding var roomName: String
+    @Binding var isPresented: Bool
+    var onCreate: () -> Void
+    @Binding var errorMessage: String?
+
+    var body: some View {
+        NavigationView {
+            Form {
+                Section(header: Text("Room Name")) {
+                    TextField("Enter room name", text: $roomName)
+                        .autocapitalization(.words)
+                }
+            }
+            .navigationTitle("New Chat Room")
+            .navigationBarItems(
+                leading: Button("Cancel") {
+                    isPresented = false
+                    roomName = ""
+                },
+                trailing: Button("Create") {
+                    onCreate()
+                }
+                .disabled(roomName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            )
+        }
     }
 }
