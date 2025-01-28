@@ -79,12 +79,20 @@ struct SidebarView: View {
 
 // MARK: - Chat Room View
 struct ChatRoomView: View {
-    @Bindable var room: ChatRoom   // SwiftData’s “binding” to track changes
-    @Environment(\.modelContext) private var context  // Access the ModelContext
-        
+    @Bindable var room: ChatRoom
+    @Environment(\.modelContext) private var context
+
     @State private var newMessage = ""
-    private var messageService: MessageService
+    @State private var errorMessage: String? // For error handling
     
+    // FocusState to manage keyboard focus
+    @FocusState private var isTextFieldFocused: Bool
+    
+    // Instantiate ChatService using the environment's ModelContext
+    private var chatService: ChatService {
+        ChatService(context: context)
+    }
+
     var body: some View {
         VStack {
             ScrollView {
@@ -94,21 +102,40 @@ struct ChatRoomView: View {
                             MessageBubbleView(message: message)
                         }
                     }
-                    // Optional scrolling logic ...
+                    // Optional: Add scrolling logic if needed
+                    .onChange(of: room.messages.count) { _ in
+                                            if let lastMessage = room.messages.last {
+                                                proxy.scrollTo(lastMessage.id, anchor: .bottom)
+                                            }
+                    }
                 }
             }
-            
+
             messageInputView
         }
         .navigationTitle(room.name)
         .navigationBarTitleDisplayMode(.inline)
+        .alert(isPresented: Binding<Bool>(
+            get: { errorMessage != nil },
+            set: { _ in errorMessage = nil }
+        )) {
+            Alert(
+                title: Text("Error"),
+                message: Text(errorMessage ?? "An unknown error occurred."),
+                dismissButton: .default(Text("OK"))
+            )
+        }
+        .onTapGesture {
+            isTextFieldFocused = false
+        }
     }
-    
+
     private var messageInputView: some View {
         HStack {
             TextField("Type a message...", text: $newMessage)
                 .textFieldStyle(.roundedBorder)
-            
+                .focused($isTextFieldFocused)
+
             Button(action: sendMessage) {
                 Image(systemName: "paperplane.fill")
                     .padding(8)
@@ -116,25 +143,40 @@ struct ChatRoomView: View {
                     .background(Color.blue)
                     .cornerRadius(8)
             }
+            .disabled(newMessage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty) // Disable if input is empty
         }
         .padding()
     }
-    
+
     private func sendMessage() {
-        guard !newMessage.isEmpty else { return }
+        // Capture the current message text
+        let messageText = newMessage.trimmingCharacters(in: .whitespacesAndNewlines)
         
-        let message = Message(text: newMessage, isSender: true)
-        room.messages.append(message)
-        
+        // Clear the TextField immediately
         newMessage = ""
+        
+        // Proceed only if the message is not empty after trimming
+        guard !messageText.isEmpty else { return }
+        
+        // Perform the asynchronous send operation
+        Task {
+            do {
+                try await chatService.sendMessage(to: room, text: messageText)
+                // Optionally, you can add scrolling to the bottom here
+            } catch {
+                // Handle the error by updating the errorMessage state
+                await MainActor.run {
+                    errorMessage = error.localizedDescription
+                }
+            }
+        }
     }
-    
+
     private func scrollToBottom(proxy: ScrollViewProxy) {
         guard let lastMessage = room.messages.last else { return }
         proxy.scrollTo(lastMessage.id, anchor: .bottom)
     }
 }
-
 // MARK: - Message Bubble View
 struct MessageBubbleView: View {
     let message: Message
