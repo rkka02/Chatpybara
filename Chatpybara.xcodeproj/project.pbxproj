@@ -6,6 +6,10 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		02D1BD392D49EA7600B0B276 /* llama in Frameworks */ = {isa = PBXBuildFile; productRef = 02D1BD382D49EA7600B0B276 /* llama */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		025F29C42D49254100B0F117 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -52,6 +56,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				02D1BD392D49EA7600B0B276 /* llama in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -112,6 +117,7 @@
 			);
 			name = Chatpybara;
 			packageProductDependencies = (
+				02D1BD382D49EA7600B0B276 /* llama */,
 			);
 			productName = Chatpybara;
 			productReference = 025F29B32D49253C00B0F117 /* Chatpybara.app */;
@@ -195,6 +201,9 @@
 			);
 			mainGroup = 025F29AA2D49253C00B0F117;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				02D1BD372D49EA1600B0B276 /* XCLocalSwiftPackageReference "../llama.cpp" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 025F29B42D49253C00B0F117 /* Products */;
 			projectDirPath = "";
@@ -408,10 +417,15 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
+				LIBRARY_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(PROJECT_DIR)/Chatpybara/Frameworks/llama.cpp/build/bin",
+				);
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "github.com-rkka02.Chatpybara";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OBJC_BRIDGING_HEADER = "";
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
@@ -437,10 +451,15 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
+				LIBRARY_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(PROJECT_DIR)/Chatpybara/Frameworks/llama.cpp/build/bin",
+				);
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "github.com-rkka02.Chatpybara";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OBJC_BRIDGING_HEADER = "";
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
@@ -558,6 +577,21 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		02D1BD372D49EA1600B0B276 /* XCLocalSwiftPackageReference "../llama.cpp" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = ../llama.cpp;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		02D1BD382D49EA7600B0B276 /* llama */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 02D1BD372D49EA1600B0B276 /* XCLocalSwiftPackageReference "../llama.cpp" */;
+			productName = llama;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 025F29AB2D49253C00B0F117 /* Project object */;
 }

@@ -8,19 +8,6 @@ import SwiftUI
 import SwiftData
 
 @Model
-class ChatRoom {
-    @Attribute(.unique) var id: UUID
-    var name: String
-    var messages: [Message]
-    
-    init(id: UUID = UUID(), name: String, messages: [Message] = []) {
-        self.id = id
-        self.name = name
-        self.messages = messages
-    }
-}
-
-@Model
 class Message {
     @Attribute(.unique) var id: UUID
     var text: String
@@ -35,56 +22,22 @@ class Message {
     }
 }
 
-struct SidebarView: View {
-    @Environment(\.modelContext) private var context  // <-- an instance of ModelContext
-        
-    // This property fetches all ChatRooms from SwiftData automatically
-    @Query(sort: \ChatRoom.name) var rooms: [ChatRoom]
-    
-    var body: some View {
-        List {
-            ForEach(rooms) { room in
-                NavigationLink {
-                    ChatRoomView(room: room)
-                } label: {
-                    Text(room.name)
-                }
-            }
-            .onDelete(perform: deleteRooms)
-        }
-        .toolbar {
-            ToolbarItem(placement: .primaryAction) {
-                Button(action: createRoom) {
-                    Image(systemName: "plus")
-                }
-            }
-        }
-        .navigationTitle("Chat Rooms")
-    }
-    
-    private func createRoom() {
-        // Insert new room into the SwiftData model context
-        let newRoom = ChatRoom(name: "Room \(rooms.count + 1)")
-        // Insert using the context instance
-        context.insert(newRoom)
-    }
-    
-    private func deleteRooms(at offsets: IndexSet) {
-        for index in offsets {
-                    let room = rooms[index]
-                    context.delete(room)
-                }
-    }
-}
-
 // MARK: - Chat Room View
 struct ChatRoomView: View {
-    @Bindable var room: ChatRoom   // SwiftData’s “binding” to track changes
-    @Environment(\.modelContext) private var context  // Access the ModelContext
-        
+    @Bindable var room: ChatRoom
+    @Environment(\.modelContext) private var context
+
     @State private var newMessage = ""
-    private var messageService: MessageService
+    @State private var errorMessage: String? // For error handling
     
+    // FocusState to manage keyboard focus
+    @FocusState private var isTextFieldFocused: Bool
+    
+    // Instantiate ChatService using the environment's ModelContext
+    private var chatService: ChatService {
+        ChatService(context: context)
+    }
+
     var body: some View {
         VStack {
             ScrollView {
@@ -94,47 +47,77 @@ struct ChatRoomView: View {
                             MessageBubbleView(message: message)
                         }
                     }
-                    // Optional scrolling logic ...
+                    // Optional: Add scrolling logic if needed
+                    .onChange(of: room.messages.count) { _ in
+                                            if let lastMessage = room.messages.last {
+                                                proxy.scrollTo(lastMessage.id, anchor: .bottom)
+                                            }
+                    }
                 }
             }
-            
-            messageInputView
+            HStack {
+                            DynamicHeightTextEditor(text: $newMessage)
+                                .focused($isTextFieldFocused) // Ensure focus binding
+                                .onTapGesture {
+                                        isTextFieldFocused = true // Manually set focus
+                                    }
+                            Button(action: sendMessage) {
+                                Image(systemName: "paperplane.fill")
+                                    .padding(8)
+                                    .foregroundColor(.white)
+                                    .background(Color.blue)
+                                    .clipShape(Circle())
+                            }
+                            .disabled(newMessage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                        }
+                        .padding()
+        }
+        .onTapGesture {
+            isTextFieldFocused = false
         }
         .navigationTitle(room.name)
         .navigationBarTitleDisplayMode(.inline)
+        .alert(isPresented: Binding<Bool>(
+            get: { errorMessage != nil },
+            set: { _ in errorMessage = nil }
+        )) {
+            Alert(
+                title: Text("Error"),
+                message: Text(errorMessage ?? "An unknown error occurred."),
+                dismissButton: .default(Text("OK"))
+            )
+        }
     }
-    
-    private var messageInputView: some View {
-        HStack {
-            TextField("Type a message...", text: $newMessage)
-                .textFieldStyle(.roundedBorder)
-            
-            Button(action: sendMessage) {
-                Image(systemName: "paperplane.fill")
-                    .padding(8)
-                    .foregroundColor(.white)
-                    .background(Color.blue)
-                    .cornerRadius(8)
+
+    private func sendMessage() {
+        // Capture the current message text
+        let messageText = newMessage.trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        // Clear the TextField immediately
+        newMessage = ""
+        
+        // Proceed only if the message is not empty after trimming
+        guard !messageText.isEmpty else { return }
+        
+        // Perform the asynchronous send operation
+        Task {
+            do {
+                try await chatService.sendMessage(to: room, text: messageText)
+                // Optionally, you can add scrolling to the bottom here
+            } catch {
+                // Handle the error by updating the errorMessage state
+                await MainActor.run {
+                    errorMessage = error.localizedDescription
+                }
             }
         }
-        .padding()
     }
-    
-    private func sendMessage() {
-        guard !newMessage.isEmpty else { return }
-        
-        let message = Message(text: newMessage, isSender: true)
-        room.messages.append(message)
-        
-        newMessage = ""
-    }
-    
+
     private func scrollToBottom(proxy: ScrollViewProxy) {
         guard let lastMessage = room.messages.last else { return }
         proxy.scrollTo(lastMessage.id, anchor: .bottom)
     }
 }
-
 // MARK: - Message Bubble View
 struct MessageBubbleView: View {
     let message: Message
@@ -157,5 +140,57 @@ struct MessageBubbleView: View {
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 2)
+    }
+}
+
+struct DynamicHeightTextEditor: View {
+    @Binding var text: String
+    @State private var textHeight: CGFloat = 40 // Initial height
+    private let placeholder: String
+    @FocusState private var isTextFieldFocused: Bool // Bind focus state
+
+
+    init(text: Binding<String>, placeholder: String = "Type a message...") {
+        self._text = text
+        self.placeholder = placeholder
+    }
+
+    var body: some View {
+        ZStack(alignment: .leading) {
+            // Placeholder Text
+            if text.isEmpty {
+                Text(placeholder)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 12)
+            }
+
+            // Background Text to measure size
+            Text(text)
+                .font(.body)
+                .foregroundColor(.clear)
+                .padding(10)
+                .background(
+                    GeometryReader { geometry in
+                        Color.clear
+                            .onAppear {
+                                textHeight = geometry.size.height
+                            }
+                            .onChange(of: text) { _ in
+                                textHeight = geometry.size.height
+                            }
+                    }
+                )
+
+            // TextEditor for user input
+            TextEditor(text: $text)
+                .font(.body)
+                .frame(height: max(30, textHeight)) // Minimum height of 30
+                .padding(10)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 20)
+                        .stroke(Color.gray.opacity(0.5), lineWidth: 1)
+                )
+                .focused($isTextFieldFocused) // Bind focus state here
+        }
     }
 }
