@@ -41,6 +41,10 @@ class ChatService {
     @MainActor
     private func persistMessage(_ message: Message, to room: ChatRoom) {
         room.messages.append(message)
+
+        // 2) Update the room’s lastMessageDate
+        room.lastMessageDate = message.date
+        
         do {
             try context.save()
         } catch {
